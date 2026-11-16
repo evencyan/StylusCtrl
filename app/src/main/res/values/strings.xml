@@ -100,9 +100,8 @@
     <string name="no_active_screen">\nNo active screen was read</string>
     <string name="no_external">No external tablet</string>
     <string name="axes_scaled">Axis range is now %1$d×%2$d. The rectangle was scaled to match.</string>
-    <string name="tablet_mismatch">This tablet is %1$s. The profile only grabs %2$s.</string>
-    <string name="use_this_tablet">Use this one</string>
-    <string name="match_unsaved">Match is now %1$s. Not saved yet.</string>
+    <string name="auto_rotate">Auto quarter turn</string>
+    <string name="device_adapted">Matched %1$s, tablet rotation %2$d°.</string>
     <string name="chord_max">A shortcut can contain at most eight keys.</string>
     <string name="curve_readout">Below %1$.0f%% stays at the start. Above %2$.0f%% pins to the end.</string>
     <string name="unknown_side_key">Unrecognized key on the %1$s side button.</string>

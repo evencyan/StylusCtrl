@@ -44,6 +44,9 @@ public final class RootStore {
         public boolean pointer;
         public boolean direct;
         public boolean penTool;
+        /** Sends pen buttons but no INPUT_PROP_POINTER (UGEE S640). */
+        public boolean penButtons;
+        public boolean mouse;
         public boolean pressure;
         public boolean multitouch;
         public String bustype = "";
@@ -250,7 +253,7 @@ public final class RootStore {
     }
 
     private static final String DEVICE_CMD =
-            "getevent -p; echo '##IDS##'; "
+            "getevent -pl; echo '##IDS##'; "
                     + "for ev in /sys/class/input/event*; do "
                     + "name=$(cat \"$ev/device/name\" 2>/dev/null | tr '\\n' ' '); "
                     + "vendor=$(cat \"$ev/device/id/vendor\" 2>/dev/null | tr -d '\\n'); "
@@ -319,6 +322,12 @@ public final class RootStore {
                 cur.pressure = true;
             } else if (trimmed.contains("BTN_DIGI") || trimmed.contains("BTN_TOOL_PEN")) {
                 cur.penTool = true;
+                cur.penButtons = true;
+            } else if (trimmed.contains("BTN_TOUCH") || trimmed.contains("BTN_TOOL_RUBBER")
+                    || trimmed.contains("BTN_STYLUS")) {
+                cur.penButtons = true;
+            } else if (trimmed.contains("BTN_MOUSE") || trimmed.contains("BTN_LEFT")) {
+                cur.mouse = true;
             } else if (trimmed.contains("ABS_MT_SLOT") || trimmed.contains("ABS_MT_POSITION_X")) {
                 cur.multitouch = true;
             } else if (trimmed.endsWith(":") && !trimmed.startsWith("ABS")) {
@@ -337,7 +346,8 @@ public final class RootStore {
             else builtin = heuristicInternal(pen);
         }
         pen.internal = builtin;
-        pen.external = pen.pointer && !pen.direct && pen.pressure && penHasAxes(pen)
+        pen.external = !pen.direct && !pen.multitouch && !pen.mouse && pen.pressure && penHasAxes(pen)
+                && (pen.pointer || pen.penButtons)
                 && !pen.name.startsWith("StylusCtrl") && !builtin;
     }
 
@@ -451,10 +461,13 @@ public final class RootStore {
 
     /** ABS_X/Y/PRESSURE, or the hex codes this tablet's getevent prints (0000, 0001, 0018). */
     private static int axisCode(String line) {
-        if (line.startsWith("ABS_X")) return 0x00;
-        if (line.startsWith("ABS_Y")) return 0x01;
-        if (line.startsWith("ABS_PRESSURE")) return 0x18;
-        Matcher matcher = AXIS_CODE.matcher(line);
+        // getevent -pl puts the first axis of a group behind an "ABS (0003):" label.
+        int group = line.indexOf("):");
+        String body = group > 0 ? line.substring(group + 2).trim() : line;
+        if (body.startsWith("ABS_X")) return 0x00;
+        if (body.startsWith("ABS_Y")) return 0x01;
+        if (body.startsWith("ABS_PRESSURE")) return 0x18;
+        Matcher matcher = AXIS_CODE.matcher(body);
         if (!matcher.find() || matcher.group(1) == null) return -1;
         try {
             return Integer.parseInt(matcher.group(1), 16);
@@ -508,6 +521,7 @@ public final class RootStore {
             pen.penTool = stylus;
             pen.direct = touch;
             pen.pointer = !touch && (stylus || mouse);
+            pen.mouse = mouse && !stylus;
             InputDevice.MotionRange x = dev.getMotionRange(MotionEvent.AXIS_X);
             InputDevice.MotionRange y = dev.getMotionRange(MotionEvent.AXIS_Y);
             InputDevice.MotionRange pressure = dev.getMotionRange(MotionEvent.AXIS_PRESSURE);

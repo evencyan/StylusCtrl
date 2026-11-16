@@ -91,9 +91,8 @@
     <string name="no_active_screen">\n没有读到活动中的屏幕</string>
     <string name="no_external">没有外接数位板</string>
     <string name="axes_scaled">轴范围换成 %1$d×%2$d，矩形已按比例换算</string>
-    <string name="tablet_mismatch">这只板子是 %1$s，配置里只抓 %2$s</string>
-    <string name="use_this_tablet">改成这只</string>
-    <string name="match_unsaved">匹配已改成 %1$s，还没保存</string>
+    <string name="auto_rotate">自动旋转板面</string>
+    <string name="device_adapted">已自动匹配 %1$s，板面旋转 %2$d°</string>
     <string name="chord_max">一组快捷键最多八个</string>
     <string name="curve_readout">低于 %1$.0f%% 保持起点，高于 %2$.0f%% 顶到终点</string>
     <string name="unknown_side_key">%1$s侧键里有不认识的键</string>

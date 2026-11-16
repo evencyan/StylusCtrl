@@ -21,6 +21,8 @@ public class Profile {
     public double[] screen = new double[] {0, 0, 1, 1};
     /** 0, 90, 180, or 270. The tablet's own rotation, independent of the screen. */
     public int rotation;
+    /** Give a portrait tablet the quarter turn the screen needs. */
+    public boolean autoRotate = true;
     /** Pixel size and Surface rotation (0–3) of the internal display. The daemon maps from this. */
     public boolean hasDisplay;
     public int displayW;
@@ -100,6 +102,7 @@ public class Profile {
         if (mapping != null) {
             p.mode = mapping.optString("mode", p.mode);
             p.crop = mapping.optString("crop", p.crop);
+            p.autoRotate = mapping.optBoolean("autoRotate", p.autoRotate);
             JSONArray rect = mapping.optJSONArray("rect");
             if (rect != null && rect.length() == 4) {
                 p.hasRect = true;
@@ -183,6 +186,7 @@ public class Profile {
         if (mapping != null) {
             item.mode = mapping.optString("mode", item.mode);
             item.crop = mapping.optString("crop", item.crop);
+            item.autoRotate = mapping.optBoolean("autoRotate", item.autoRotate);
             JSONArray rect = mapping.optJSONArray("rect");
             if (rect != null && rect.length() == 4) {
                 item.hasRect = true;
@@ -390,7 +394,8 @@ public class Profile {
         }
         b.append(" },\n");
         b.append("  \"mapping\": { \"mode\": \"").append(mode).append("\", \"crop\": \"")
-                .append(crop).append("\", \"rotation\": ").append(rotation);
+                .append(crop).append("\", \"rotation\": ").append(rotation)
+                .append(", \"autoRotate\": ").append(autoRotate);
         if (hasRect) {
             b.append(", \"rect\": [").append(rect[0]).append(", ").append(rect[1]).append(", ")
                     .append(rect[2]).append(", ").append(rect[3]).append("]");
@@ -428,7 +433,8 @@ public class Profile {
     static String presetBody(PresetStore.Item item) {
         StringBuilder b = new StringBuilder();
         b.append("{ \"mapping\": { \"mode\": \"").append(item.mode).append("\", \"crop\": \"")
-                .append(item.crop).append("\", \"rotation\": ").append(item.rotation);
+                .append(item.crop).append("\", \"rotation\": ").append(item.rotation)
+                .append(", \"autoRotate\": ").append(item.autoRotate);
         if (item.hasRect) {
             b.append(", \"rect\": [").append(item.rect[0]).append(", ").append(item.rect[1]).append(", ")
                     .append(item.rect[2]).append(", ").append(item.rect[3]).append("]");

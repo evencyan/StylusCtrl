@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
     private MappingBoard board;
     private ChipGroup presets;
     private ChipGroup rotations;
+    private MaterialSwitch autoRotate;
     private CurveGraph curve;
     private TextView curveReadout;
     private TextView status;
@@ -105,7 +106,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean devicesBusy;
     private boolean knowRoot;
     private boolean haveRoot;
-    private String offeredMatch = "";
     private String deviceLine = "";
     /** When the external pen last disappeared. Re-enumeration drops it for about 3 seconds. */
     private long externalGoneAt = -1;
@@ -176,6 +176,11 @@ public class MainActivity extends AppCompatActivity {
         board = mappingPage.findViewById(R.id.board);
         presets = mappingPage.findViewById(R.id.presets);
         rotations = mappingPage.findViewById(R.id.tablet_rotation);
+        autoRotate = mappingPage.findViewById(R.id.auto_rotate);
+        autoRotate.setOnCheckedChangeListener((view, checked) -> {
+            if (filling) return;
+            profile.autoRotate = checked;
+        });
         curve = pressurePage.findViewById(R.id.curve);
         curveReadout = pressurePage.findViewById(R.id.curve_readout);
         status = devicePage.findViewById(R.id.status);
@@ -369,7 +374,7 @@ public class MainActivity extends AppCompatActivity {
             int showW = snap.screenW > 0 ? snap.screenW : screenW;
             int showH = snap.screenH > 0 ? snap.screenH : screenH;
             String screen = showW > 0 ? getString(R.string.screen_size, showW, showH).trim() : "";
-            statusPrefix = screen;
+            statusPrefix = snap.root ? screen : getString(R.string.local_config) + screen;
             if (parsed) publishDisplay();
             applyDevices(snap);
             if (!parsed) pageSub.setText(R.string.config_parse_failed);
@@ -443,8 +448,9 @@ public class MainActivity extends AppCompatActivity {
     private void adoptAxes(RootStore.Pen pen) {
         int maxX = pen.maxX;
         int maxY = pen.maxY;
+        boolean adapted = adaptDevice(pen);
         if (maxX <= 0 || maxY <= 0) {
-            offerMatch(pen);
+            if (adapted) writeConfig(true);
             return;
         }
         int oldX = profile.hasSpan ? profile.spanX : 15200;
@@ -461,7 +467,7 @@ public class MainActivity extends AppCompatActivity {
             tabletMaxX = maxX;
             tabletMaxY = maxY;
         }
-        if (changed) {
+        if (changed || adapted) {
             board.setAxes(tabletMaxX, tabletMaxY, screenW, screenH);
             board.setMapping(profile.mode, profile.crop, profile.hasRect, profile.rect,
                     profile.hasScreen, toFloat(profile.screen));
@@ -469,30 +475,46 @@ public class MainActivity extends AppCompatActivity {
             String json = configJson();
             io.execute(() -> RootStore.write(MainActivity.this, json));
         }
-        offerMatch(pen);
     }
 
-    private void offerMatch(RootStore.Pen pen) {
-        if (pen.vendor.isEmpty() || pen.product.isEmpty()) return;
+    /**
+     * Follows the tablet that is actually plugged in: the match ids, and the quarter turn a
+     * portrait tablet needs on a landscape screen. Android's own pointer mapping cuts the extra
+     * edge away, so the turn is what makes the whole surface usable.
+     */
+    private boolean adaptDevice(RootStore.Pen pen) {
+        if (pen.vendor.isEmpty() || pen.product.isEmpty()) return false;
         String id = pen.vendor + ":" + pen.product;
-        String current = RootStore.hex4(profile.vendor) + ":" + RootStore.hex4(profile.product);
-        if (id.equals(current)) {
-            offeredMatch = "";
-            return;
+        boolean changed = false;
+        if (!id.equals(RootStore.hex4(profile.vendor) + ":" + RootStore.hex4(profile.product))) {
+            profile.vendor = pen.vendor;
+            profile.product = pen.product;
+            changed = true;
         }
-        if (id.equals(offeredMatch)) return;
-        offeredMatch = id;
-        final String vendor = pen.vendor;
-        final String product = pen.product;
-        Snackbar.make(root, getString(R.string.tablet_mismatch, id, current), Snackbar.LENGTH_LONG)
-                .setAction(R.string.use_this_tablet, v -> {
-                    profile.vendor = vendor;
-                    profile.product = product;
-                    offeredMatch = "";
-                    pageSub.setText(getString(R.string.match_unsaved, id));
-                    deviceLine = pageSub.getText().toString();
-                })
-                .show();
+        if (profile.autoRotate && portraitTablet(pen)) {
+            // A portrait tablet fills a landscape screen only after a quarter turn, and needs
+            // no turn on a portrait screen. Undo only what this screen set itself.
+            int want = screenW > screenH ? 270 : 0;
+            // On a portrait screen any quarter turn is ours to undo; on a landscape screen a
+            // rotated tablet still starts at 0 and gets its turn here.
+            boolean mine = want == 0 ? (profile.rotation == 90 || profile.rotation == 270)
+                    : profile.rotation == 0;
+            if (mine) {
+                profile.rotation = want;
+                board.setRotation(want);
+                board.setMapping(profile.mode, profile.crop, profile.hasRect, profile.rect,
+                        profile.hasScreen, toFloat(profile.screen));
+                checkRotation(profile);
+                changed = true;
+            }
+        }
+        if (changed) pageSub.setText(getString(R.string.device_adapted, id, profile.rotation));
+        return changed;
+    }
+
+    /** A portrait tablet: the long axis is Y. */
+    private static boolean portraitTablet(RootStore.Pen pen) {
+        return pen.maxX > 0 && pen.maxY > pen.maxX;
     }
 
     private void showProfile(Profile p) {
@@ -607,6 +629,10 @@ public class MainActivity extends AppCompatActivity {
         else if (p.rotation == 180) id = R.id.rot_180;
         else if (p.rotation == 270) id = R.id.rot_270;
         rotations.check(id);
+        boolean wasFilling = filling;
+        filling = true;
+        autoRotate.setChecked(p.autoRotate);
+        filling = wasFilling;
     }
 
     private void applyRotation(int id) {

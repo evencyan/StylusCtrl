@@ -116,6 +116,13 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/auto_rotate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/auto_rotate" />
+
     <app.stylusctrl.MappingBoard
         android:id="@+id/board"
         android:layout_width="match_parent"

@@ -24,6 +24,7 @@ public final class PresetStore {
         public String mode = "fit";
         public String crop = "center";
         public int rotation;
+        public boolean autoRotate = true;
         public boolean hasRect;
         public int[] rect = new int[] {0, 0, 15200, 9500};
         public boolean hasScreen;
@@ -38,6 +39,7 @@ public final class PresetStore {
             mode = other.mode;
             crop = other.crop;
             rotation = other.rotation;
+            autoRotate = other.autoRotate;
             hasRect = other.hasRect;
             rect = other.rect.clone();
             hasScreen = other.hasScreen;

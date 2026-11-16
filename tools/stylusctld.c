@@ -82,6 +82,9 @@ struct tool_state {
     int phys_rubber;
     int phys_touch;
     int phys_stylus;
+    /* Some tablets report contact with BTN_TOUCH and never send BTN_TOOL_PEN
+       (UGEE S640 does this). The supplied BTN_TOOL_PEN then follows BTN_TOUCH. */
+    int touch_pen;
     /* 5.10 hid-input latches BTN_TOOL_RUBBER until the pen leaves range.
        The Invert usage in the raw report still follows the second button. */
     int invert_known;
@@ -298,6 +301,15 @@ static int keep_event(const struct tool_state *st, const struct input_event *ev)
     return ev->type == EV_SYN && ev->code == SYN_REPORT;
 }
 
+/* The second barrel button is not one fixed code across vendors. hid-generic
+   pens send BTN_STYLUS2, the UGEE S640 sends BTN_MISC, and several clones send
+   BTN_0..BTN_9 (BTN_MISC is the same code as BTN_0). They all mean "the other
+   side button", so the buttons.BTN_TOOL_RUBBER action applies to each of them
+   and no device has to be named here. */
+static int is_barrel_button(unsigned code) {
+    return code == BTN_STYLUS2 || (code >= BTN_MISC && code <= BTN_9);
+}
+
 /* Rubber wins over the pen tool when its action is still the eraser.
    Physical state still tracks BTN_TOOL_PEN. A null profile is phase 1. */
 static int emit_report(struct tool_state *st, const struct input_event *in, int n, struct input_event *out,
@@ -312,7 +324,9 @@ static int emit_report(struct tool_state *st, const struct input_event *in, int 
         else if (in[i].code == BTN_TOOL_RUBBER) rubber = in[i].value;
         else if (in[i].code == BTN_TOUCH) touch = in[i].value;
         else if (in[i].code == BTN_STYLUS) stylus = in[i].value;
+        else if (is_barrel_button(in[i].code)) rubber = in[i].value;
     }
+    if (st->touch_pen) pen = touch;
     int rubber_act = profile ? profile->rubber_action : RUBBER_ERASER;
     int stylus_act = profile ? profile->stylus_action : STYLUS_PASS;
     int eraser_wins = profile ? profile->eraser_wins : 1;
@@ -3724,13 +3738,18 @@ static void try_add(struct pen *pens, int *npens, const char *path) {
     int direct = bit_is_set(prop, INPUT_PROP_DIRECT);
     int pen_tool = bit_is_set(keybits, BTN_TOOL_PEN);
     int multitouch = bit_is_set(absbits, ABS_MT_SLOT);
+    /* Some brands (UGEE S640) leave INPUT_PROP_POINTER unset on the pen node.
+       A real pen node still has the pen buttons and no mouse keys. */
+    int mouse = bit_is_set(keybits, BTN_MOUSE) || bit_is_set(keybits, BTN_LEFT);
+    int pen_buttons = bit_is_set(keybits, BTN_TOUCH) || bit_is_set(keybits, BTN_TOOL_RUBBER) ||
+            bit_is_set(keybits, BTN_DIGI);
     int builtin = config_internal(&cfg, source, direct, pen_tool, multitouch, id.bustype, id.vendor, id.product);
     if (builtin) {
         if (!cfg_loaded || !cfg.internal_on) {
             close(fd);
             return;
         }
-    } else if (!bit_is_set(prop, INPUT_PROP_POINTER) || direct) {
+    } else if (direct || multitouch || mouse || !(bit_is_set(prop, INPUT_PROP_POINTER) || pen_buttons)) {
         close(fd);
         return;
     }
@@ -3771,6 +3790,7 @@ static void try_add(struct pen *pens, int *npens, const char *path) {
     pen->ufd = -1;
     pen->direct = builtin;
     pen->pen_tool = pen_tool;
+    pen->tool.touch_pen = !pen_tool && bit_is_set(keybits, BTN_TOUCH);
     pen->multitouch = multitouch;
     snprintf(pen->source, sizeof pen->source, "%s", source);
     unsigned long swbits[2];
